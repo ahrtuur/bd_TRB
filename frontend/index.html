@@ -12,99 +12,63 @@
   <!-- ============================ LOGIN ============================ -->
   <section id="login" class="login">
     <div class="login-card">
-      <div class="brand brand--lg">
-        <span class="brand-mark">TRB</span>
-        <div>
-          <strong>Telas Rio Branco</strong>
-          <small>Painel de Pedidos</small>
-        </div>
+      <div class="brand-logo brand-logo--dark">
+        <span class="brand-trb">TRB</span>
+        <span class="brand-sub">Telas<br>Rio Branco</span>
       </div>
-      <label class="field">
-        <span>Usuário</span>
-        <input id="login-user" type="text" value="operador" autocomplete="username" />
-      </label>
-      <label class="field">
-        <span>Senha</span>
-        <input id="login-pass" type="password" value="••••••" autocomplete="current-password" />
-      </label>
-      <button class="btn btn--primary btn--block" id="login-btn">Entrar</button>
+      <label class="field"><span>Usuário</span>
+        <input id="login-user" type="text" value="operador" autocomplete="username" /></label>
+      <label class="field"><span>Senha</span>
+        <input id="login-pass" type="password" value="123456" autocomplete="current-password" /></label>
+      <button class="btn btn--green btn--block" id="login-btn">Entrar</button>
       <p class="login-hint">Demo — qualquer credencial entra.</p>
     </div>
   </section>
 
   <!-- ============================= APP ============================= -->
   <div id="app" class="app hidden">
+    <!-- topo verde -->
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">TRB</span>
-        <div>
-          <strong id="view-title">Painel de Pedidos</strong>
-          <small>Telas Rio Branco</small>
-        </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand-logo">
+        <span class="brand-spark">✦</span>
+        <span class="brand-trb">TRB</span>
+        <span class="brand-sub">Telas<br>Rio Branco</span>
       </div>
-      <button class="btn btn--ghost" id="logout-btn">Sair</button>
     </header>
 
-    <!-- contadores por status -->
-    <div class="stats" id="stats"></div>
+    <div class="layout">
+      <!-- menu lateral -->
+      <aside class="sidebar" id="sidebar">
+        <nav>
+          <button class="nav-item active" data-view="painel">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Painel</button>
+          <button class="nav-item" data-view="pedidos">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Pedidos</button>
+          <button class="nav-item" data-view="producao">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Produção</button>
+          <button class="nav-item" data-view="entregas">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M3 7h11v8H3zM14 10h4l3 3v2h-7zM7 19a2 2 0 100-4 2 2 0 000 4zM18 19a2 2 0 100-4 2 2 0 000 4z"/></svg>Entregas</button>
+          <button class="nav-item" data-view="clientes">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>Clientes</button>
+          <button class="nav-item" data-view="relatorios">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Relatórios</button>
+          <button class="nav-item" data-view="config">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.4 2.5h4l.4-2.5a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6c.1-.3.1-.7.1-1z"/></svg>Configurações</button>
+        </nav>
+        <button class="nav-item nav-sair" id="logout-btn">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>Sair</button>
+      </aside>
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
-    <!-- busca + filtros -->
-    <div class="toolbar" id="toolbar">
-      <div class="search">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M21 21l-4.3-4.3M11 19a8 8 0 110-16 8 8 0 010 16z"/></svg>
-        <input id="search" type="search" placeholder="Buscar pedido..." />
-      </div>
-      <button class="btn btn--outline" id="open-filters">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-        Filtros
-      </button>
-      <div class="view-toggle" id="view-toggle">
-        <button data-mode="tabela" class="active">Tabela</button>
-        <button data-mode="kanban">Kanban</button>
-      </div>
-      <button class="btn btn--primary" id="novo-pedido">+ Novo pedido</button>
-    </div>
-
-    <main id="content" class="content"></main>
-
-    <!-- navegação inferior -->
-    <nav class="bottomnav">
-      <button data-view="pedidos" class="active">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        <span>Pedidos</span>
-      </button>
-      <button data-view="producao">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M3 21V8l6-4 6 4v13M9 21v-6h2v6M15 12h6v9h-6"/></svg>
-        <span>Produção</span>
-      </button>
-      <button data-view="entregas">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M3 7h11v8H3zM14 10h4l3 3v2h-7zM7 19a2 2 0 100-4 2 2 0 000 4zM18 19a2 2 0 100-4 2 2 0 000 4z"/></svg>
-        <span>Entregas</span>
-      </button>
-      <button data-view="clientes">
-        <svg viewBox="0 0 24 24" class="ico"><path d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
-        <span>Clientes</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- ====================== MODAL: DETALHE ======================= -->
-  <div class="modal hidden" id="modal-detalhe">
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-card">
-      <header class="modal-head">
-        <h3 id="det-titulo">Pedido</h3>
-        <button class="icon-btn" data-close>&times;</button>
-      </header>
-      <div class="modal-body" id="det-body"></div>
-      <footer class="modal-foot">
-        <button class="btn btn--ghost" data-close>Voltar</button>
-        <button class="btn btn--primary" id="det-editar">Editar pedido</button>
-      </footer>
+      <!-- conteúdo -->
+      <main class="main" id="content"></main>
     </div>
   </div>
 
-  <!-- ===================== MODAL: FORMULÁRIO ===================== -->
+  <!-- ====================== MODAL: FORMULÁRIO ===================== -->
   <div class="modal hidden" id="modal-form">
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
@@ -117,24 +81,19 @@
         <label class="field"><span>Código do cliente</span>
           <input id="f-codigo" list="clientes-list" required /></label>
         <datalist id="clientes-list"></datalist>
-        <label class="field"><span>Nome do cliente</span>
-          <input id="f-nome" /></label>
+        <label class="field"><span>Nome do cliente</span><input id="f-nome" /></label>
         <label class="field"><span>Tipo de tela</span>
           <input id="f-tipo" placeholder="Tela 5x3" required /></label>
         <label class="field"><span>Quantidade</span>
           <input id="f-qtd" type="number" step="0.01" min="0.01" value="1" required /></label>
-        <label class="field"><span>Data do pedido</span>
-          <input id="f-data-pedido" type="date" /></label>
-        <label class="field"><span>Data da entrega</span>
-          <input id="f-data-entrega" type="date" /></label>
-        <label class="field"><span>Status</span>
-          <select id="f-status"></select></label>
-        <label class="field" id="f-maquina-wrap"><span>Máquina</span>
-          <select id="f-maquina"></select></label>
+        <label class="field"><span>Data do pedido</span><input id="f-data-pedido" type="date" /></label>
+        <label class="field"><span>Data da entrega</span><input id="f-data-entrega" type="date" /></label>
+        <label class="field"><span>Status</span><select id="f-status"></select></label>
+        <label class="field" id="f-maquina-wrap"><span>Máquina</span><select id="f-maquina"></select></label>
       </form>
       <footer class="modal-foot">
         <button class="btn btn--ghost" data-close>Cancelar</button>
-        <button class="btn btn--primary" id="form-salvar">Salvar</button>
+        <button class="btn btn--green" id="form-salvar">Salvar</button>
       </footer>
     </div>
   </div>
@@ -143,23 +102,18 @@
   <div class="modal hidden" id="modal-filtros">
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card modal-card--side">
-      <header class="modal-head">
-        <h3>Filtros</h3>
-        <button class="icon-btn" data-close>&times;</button>
-      </header>
+      <header class="modal-head"><h3>Filtros</h3><button class="icon-btn" data-close>&times;</button></header>
       <div class="modal-body">
         <p class="field-label">Tipo de Tela</p>
         <div class="chips" id="filtro-tipos"></div>
         <label class="field"><span>Quantidade mínima</span>
           <input id="filtro-qtd" type="number" step="0.01" min="0" placeholder="XXXX" /></label>
-        <label class="field"><span>Data de Início</span>
-          <input id="filtro-inicio" type="date" /></label>
-        <label class="field"><span>Data de Entrega</span>
-          <input id="filtro-entrega" type="date" /></label>
+        <label class="field"><span>Data de Início</span><input id="filtro-inicio" type="date" /></label>
+        <label class="field"><span>Data de Entrega</span><input id="filtro-entrega" type="date" /></label>
       </div>
       <footer class="modal-foot">
         <button class="btn btn--ghost" id="filtro-limpar">Limpar</button>
-        <button class="btn btn--primary" id="filtro-aplicar">Pesquisar</button>
+        <button class="btn btn--green" id="filtro-aplicar">Pesquisar</button>
       </footer>
     </div>
   </div>

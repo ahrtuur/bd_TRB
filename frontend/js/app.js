@@ -1,15 +1,19 @@
-/* App TRB — Painel de Pedidos (SPA vanilla) */
+/* App TRB — Painel de Pedidos (SPA vanilla, tema Telas Rio Branco) */
 (() => {
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
   const TIPOS = ["Tela 3x2", "Tela 4x2", "Tela 4x3", "Tela 5x3", "Tela 6x3", "Tela 6x4", "Tela 8x5"];
 
+  // rótulos curtos dos contadores (como no protótipo)
+  const CURTO = { atrasado: "Atrasado", novo: "Novo", producao: "Em produção",
+                  aguarda: "Aguarda entrega", entregue: "Entregue" };
+
   const state = {
-    view: "pedidos",
-    mode: "tabela",
+    view: "painel",
     page: 1,
-    pageSize: 4, // o PDF mostra "1 de 2" com 4 linhas por página
+    pageSize: 4,
+    selecionado: null,
     filtros: { q: "", status: null, tipo_tela: "", qtd: null, inicio: "", entrega: "" },
     filtroTipos: new Set(),
   };
@@ -17,48 +21,15 @@
   // ------------------------------------------------------------ helpers
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmtData = (iso) => {
-    if (!iso) return "—";
-    const [a, m, d] = iso.split("-");
-    return `${d}/${m}/${a}`;
-  };
+  const fmtData = (iso) => { if (!iso) return "—"; const [a, m, d] = iso.split("-"); return `${d}/${m}/${a}`; };
   const fmtQtd = (q) => Number(q).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  const badge = (status, label) =>
-    `<span class="badge badge-${status}">${esc(label || API.labels[status] || status)}</span>`;
+  const badge = (s, label) => `<span class="badge badge-${s}">${esc(label || API.labels[s])}</span>`;
 
   function toast(msg, tipo = "sucesso") {
     const t = document.createElement("div");
-    t.className = "toast " + tipo;
-    t.textContent = msg;
+    t.className = "toast " + tipo; t.textContent = msg;
     $("#toasts").appendChild(t);
     setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 2600);
-  }
-
-  // ----------------------------------------------------------- contadores
-  async function renderStats() {
-    const { por_status, ordem, labels } = await API.stats();
-    $("#stats").innerHTML = ordem.map((s) => `
-      <button class="stat ${state.filtros.status === s ? "active" : ""}" data-status="${s}">
-        <span class="num">${String(por_status[s] || 0).padStart(2, "0")}</span>
-        <span class="lbl">${esc(labels[s])}</span>
-      </button>`).join("");
-    $$("#stats .stat").forEach((b) => b.addEventListener("click", () => {
-      state.filtros.status = state.filtros.status === b.dataset.status ? null : b.dataset.status;
-      state.page = 1;
-      renderStats();
-      renderPedidos();
-    }));
-  }
-
-  // ------------------------------------------------------------- pedidos
-  function buildParams(extra = {}) {
-    const f = state.filtros;
-    return {
-      q: f.q || undefined,
-      status: f.status || undefined,
-      tipo_tela: f.tipo_tela || undefined,
-      ...extra,
-    };
   }
 
   function aplicaFiltrosLocais(itens) {
@@ -70,19 +41,56 @@
       return true;
     });
   }
+  const buildParams = () => ({
+    q: state.filtros.q || undefined, status: state.filtros.status || undefined,
+    tipo_tela: state.filtros.tipo_tela || undefined,
+  });
 
-  async function renderPedidos() {
-    $("#toolbar").classList.remove("hidden");
-    $("#view-title").textContent = "Painel de Pedidos";
+  // ----------------------------------------------------------- contadores
+  async function statsHTML() {
+    const { por_status, ordem } = await API.stats();
+    return `<div class="stats">${ordem.map((s) => `
+      <button class="stat ${state.filtros.status === s ? "active" : ""}" data-status="${s}">
+        <div><span class="num">${String(por_status[s] || 0).padStart(2, "0")}</span>
+        <span class="lbl">${esc(CURTO[s])}</span></div>
+        <span class="bar"></span>
+      </button>`).join("")}</div>`;
+  }
+  function bindStats() {
+    $$(".stat").forEach((b) => b.addEventListener("click", () => {
+      state.filtros.status = state.filtros.status === b.dataset.status ? null : b.dataset.status;
+      state.page = 1; render();
+    }));
+  }
 
-    if (state.mode === "kanban") return renderKanban();
+  const toolbarHTML = () => `
+    <div class="toolbar">
+      <div class="search">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 21l-4.3-4.3M11 19a8 8 0 110-16 8 8 0 010 16z"/></svg>
+        <input id="search" type="search" placeholder="Buscar pedido..." value="${esc(state.filtros.q)}">
+      </div>
+      <button class="btn btn--green" id="novo-pedido">+ Novo pedido</button>
+      <button class="btn btn--outline" id="open-filters">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Filtros</button>
+    </div>`;
 
+  function bindToolbar() {
+    let tmr;
+    $("#search")?.addEventListener("input", (e) => {
+      clearTimeout(tmr);
+      tmr = setTimeout(() => { state.filtros.q = e.target.value.trim(); state.page = 1; render(); }, 220);
+    });
+    $("#novo-pedido")?.addEventListener("click", () => abrirForm());
+    $("#open-filters")?.addEventListener("click", () => { montarFiltros(); abrir("#modal-filtros"); });
+  }
+
+  // ------------------------------------------------------- PAINEL (tabela)
+  async function viewPainel() {
     const todos = aplicaFiltrosLocais((await API.pedidos(buildParams())).itens);
     const total = todos.length;
-    const totalPaginas = Math.max(1, Math.ceil(total / state.pageSize));
-    if (state.page > totalPaginas) state.page = totalPaginas;
-    const ini = (state.page - 1) * state.pageSize;
-    const itens = todos.slice(ini, ini + state.pageSize);
+    const totalPg = Math.max(1, Math.ceil(total / state.pageSize));
+    if (state.page > totalPg) state.page = totalPg;
+    const itens = todos.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
 
     const linhas = itens.map((p) => `
       <tr data-numero="${p.numero}">
@@ -95,6 +103,9 @@
       </tr>`).join("") || `<tr><td colspan="6" class="empty">Nenhum pedido encontrado.</td></tr>`;
 
     $("#content").innerHTML = `
+      <h1 class="page-title">Painel de Pedidos</h1>
+      ${await statsHTML()}
+      ${toolbarHTML()}
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -103,57 +114,107 @@
           </tr></thead>
           <tbody>${linhas}</tbody>
         </table>
-        <div class="pagination">
-          <button id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Voltar</button>
-          <span>${state.page} de ${totalPaginas}</span>
-          <button id="pg-next" ${state.page >= totalPaginas ? "disabled" : ""}>Próximo</button>
+        <div class="table-foot">
+          <div class="pagination">
+            <span class="page-num">${state.page} de ${totalPg}</span>
+            <button id="pg-next" ${state.page >= totalPg ? "disabled" : ""}>próximo ►</button>
+          </div>
+          <button class="btn btn--green btn-voltar" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Voltar</button>
         </div>
       </div>`;
-
+    bindStats(); bindToolbar();
     $$("#content tbody tr[data-numero]").forEach((tr) =>
       tr.addEventListener("click", () => abrirDetalhe(Number(tr.dataset.numero))));
-    $("#pg-prev")?.addEventListener("click", () => { state.page--; renderPedidos(); });
-    $("#pg-next")?.addEventListener("click", () => { state.page++; renderPedidos(); });
+    $("#pg-next")?.addEventListener("click", () => { state.page++; render(); });
+    $("#pg-prev")?.addEventListener("click", () => { if (state.page > 1) { state.page--; render(); } });
   }
 
-  async function renderKanban() {
-    const itens = aplicaFiltrosLocais((await API.pedidos(buildParams())).itens);
-    const cols = API.ordem;
-    $("#content").innerHTML = `<div class="kanban">${cols.map((s) => {
-      const doStatus = itens.filter((p) => p.status === s);
-      return `<div class="kcol" data-status="${s}">
-        <div class="kcol-head"><span>${esc(API.labels[s])}</span><span class="count">${doStatus.length}</span></div>
-        ${doStatus.map(cardKanban).join("") || '<div class="empty" style="padding:18px;font-size:12px">—</div>'}
-      </div>`;
-    }).join("")}</div>`;
-    $$("#content .kcard").forEach((c) =>
-      c.addEventListener("click", () => abrirDetalhe(Number(c.dataset.numero))));
-  }
-
+  // ------------------------------------------------------- PEDIDOS (kanban)
   const cardKanban = (p) => `
-    <div class="kcard" data-status="${p.status}" data-numero="${p.numero}">
-      <div class="kp">PEDIDO</div>
-      <div class="kn">${p.numero}</div>
-      <div class="kc">${esc(p.nome_cliente)}</div>
-      <div class="kmeta"><span>${esc(p.tipo_tela)}</span><span>${fmtData(p.data_entrega)}</span></div>
+    <div class="kcard ${state.selecionado === p.numero ? "sel" : ""}" data-status="${p.status}" data-numero="${p.numero}">
+      <span class="flag"></span>
+      <div class="kp">PEDIDO ${p.numero}</div>
+      <div class="kc">Nome do Cliente</div>
+      <div class="kn">${esc(p.nome_cliente)}</div>
     </div>`;
 
-  // ------------------------------------------------------------ produção
-  async function renderProducao() {
-    $("#toolbar").classList.add("hidden");
-    $("#view-title").textContent = "Produção";
-    const [{ itens: maquinas }, prod] = await Promise.all([
-      API.maquinas(),
-      API.pedidos({ status: "producao" }),
-    ]);
-    const novos = (await API.pedidos({ status: "novo" })).itens;
-    const fila = [...novos, ...prod.itens.filter((p) => !p.maquina)];
+  async function viewPedidos() {
+    const itens = aplicaFiltrosLocais((await API.pedidos(buildParams())).itens);
+    if (!state.selecionado && itens.length) state.selecionado = itens[0].numero;
+    const cols = API.ordem.map((s) => {
+      const doe = itens.filter((p) => p.status === s);
+      return `<div class="kcol" data-status="${s}">
+        <div class="kcol-head"><span>${esc(API.labels[s])}</span><span class="count">${doe.length}</span></div>
+        ${doe.map(cardKanban).join("") || '<div class="empty" style="padding:14px;font-size:12px">—</div>'}
+      </div>`;
+    }).join("");
+    const sel = itens.find((p) => p.numero === state.selecionado);
 
     $("#content").innerHTML = `
+      <h1 class="page-title">Pedidos</h1>
+      ${await statsHTML()}
+      ${toolbarHTML()}
+      <div class="kanban-wrap with-panel">
+        <div class="kanban">${cols}</div>
+        <aside class="detail-panel" id="painel-detalhe">${sel ? detalheDark(sel) : '<div class="dp-empty">Selecione um pedido</div>'}</aside>
+      </div>`;
+    bindStats(); bindToolbar();
+    $$("#content .kcard").forEach((c) => c.addEventListener("click", () => {
+      state.selecionado = Number(c.dataset.numero);
+      $$("#content .kcard").forEach((x) => x.classList.toggle("sel", x === c));
+      API.pedido(state.selecionado).then((p) => { $("#painel-detalhe").innerHTML = detalheDark(p); bindDark(p); });
+    }));
+    if (sel) bindDark(sel);
+  }
+
+  function detalheDark(p) {
+    return `
+      <div class="dp-head"><span class="dp-num">Nº PEDIDO ${p.numero}</span>
+        <span class="dp-flag" style="background:var(--st-${p.status})"></span></div>
+      <div class="dp-row"><span class="k">Código do cliente</span><span class="v">${esc(p.codigo_cliente)}</span></div>
+      <div class="dp-row"><span class="k">Nome do cliente</span><span class="v">${esc(p.nome_cliente)}</span></div>
+      <div class="dp-row"><span class="k">Tipo de tela</span><span class="v">${esc(p.tipo_tela)}</span></div>
+      <div class="dp-row"><span class="k">Quantidade</span><span class="v">${fmtQtd(p.quantidade)}</span></div>
+      <div class="dp-row"><span class="k">Data do pedido</span><span class="v">${fmtData(p.data_pedido)}</span></div>
+      <div class="dp-row"><span class="k">Data da entrega</span><span class="v">${fmtData(p.data_entrega)}</span></div>
+      <div class="dp-row"><span class="k">Status</span>
+        <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>
+      ${p.maquina ? `<div class="dp-row"><span class="k">Máquina</span><span class="v">${esc(p.maquina)}</span></div>` : ""}
+      <div class="dp-actions"><button class="btn btn--green" data-editar="${p.numero}">Editar pedido</button></div>`;
+  }
+  function bindDark(p) {
+    $(`[data-editar="${p.numero}"]`)?.addEventListener("click", () => abrirForm(p));
+  }
+
+  // detalhe em modal (vindo da tabela)
+  function abrirDetalhe(numero) {
+    API.pedido(numero).then((p) => {
+      let m = $("#modal-detalhe");
+      if (!m) {
+        m = document.createElement("div"); m.id = "modal-detalhe"; m.className = "modal";
+        m.innerHTML = `<div class="modal-backdrop" data-close></div>
+          <div class="modal-card detail-panel" id="modal-det-card" style="max-width:380px"></div>`;
+        document.body.appendChild(m);
+        m.querySelector("[data-close]").addEventListener("click", () => m.classList.add("hidden"));
+      }
+      $("#modal-det-card").innerHTML = detalheDark(p);
+      bindDark(p);
+      m.classList.remove("hidden");
+    });
+  }
+
+  // ------------------------------------------------------------ produção
+  async function viewProducao() {
+    const [{ itens: maquinas }, prod, novos] = await Promise.all([
+      API.maquinas(), API.pedidos({ status: "producao" }), API.pedidos({ status: "novo" }),
+    ]);
+    const fila = [...novos.itens, ...prod.itens.filter((p) => !p.maquina)];
+    $("#content").innerHTML = `
+      <h1 class="page-title">Produção</h1>
       <div class="prod-grid">
         <div>
-          <p class="section-title">Em produção</p>
-          <div class="kanban" style="grid-auto-columns:minmax(200px,1fr)">
+          <p class="section-title" style="margin-top:0">Em produção</p>
+          <div class="kanban" style="grid-auto-columns:minmax(190px,1fr)">
             <div class="kcol" data-status="producao">
               <div class="kcol-head"><span>Em produção</span><span class="count">${prod.itens.length}</span></div>
               ${prod.itens.map(cardKanban).join("") || '<div class="empty">—</div>'}
@@ -161,23 +222,17 @@
           </div>
         </div>
         <div>
-          <p class="section-title">Máquinas</p>
-          <div class="maquinas">
-            ${maquinas.map((m) => `
-              <div class="maquina ${m.status}">
-                <h4>${esc(m.nome)}</h4>
-                <div class="mst">${m.status === "ocupada" ? "Ocupada" : "Livre"}</div>
-                <div class="mp">${m.pedido_atual ? "Pedido #" + m.pedido_atual : "Sem pedido"}</div>
-              </div>`).join("")}
+          <p class="section-title" style="margin-top:0">Máquinas</p>
+          <div class="maquinas">${maquinas.map((m) => `
+            <div class="maquina ${m.status}"><h4>${esc(m.nome)}</h4>
+              <div class="mst">${m.status === "ocupada" ? "Ocupada" : "Livre"}</div>
+              <div class="mp">${m.pedido_atual ? "Pedido #" + m.pedido_atual : "Sem pedido"}</div></div>`).join("")}
           </div>
           <p class="section-title">Fila</p>
-          <div class="fila">
-            <div class="fila-head">Aguardando produção</div>
-            ${fila.map((p) => `
-              <div class="fila-item" data-numero="${p.numero}">
-                <span><strong>${p.numero}</strong> · ${esc(p.codigo_cliente)}</span>
-                <span>${esc(p.tipo_tela)}</span>
-              </div>`).join("") || '<div class="fila-item">Fila vazia</div>'}
+          <div class="fila"><div class="fila-head">Aguardando produção</div>
+            ${fila.map((p) => `<div class="fila-item" data-numero="${p.numero}">
+              <span><strong>${p.numero}</strong> · ${esc(p.codigo_cliente)}</span><span>${esc(p.tipo_tela)}</span></div>`).join("")
+              || '<div class="fila-item">Fila vazia</div>'}
           </div>
         </div>
       </div>`;
@@ -186,162 +241,118 @@
   }
 
   // ------------------------------------------------------------ entregas
-  async function renderEntregas() {
-    $("#toolbar").classList.add("hidden");
-    $("#view-title").textContent = "Entregas";
+  async function viewEntregas() {
     const [aguarda, entregue] = await Promise.all([
-      API.pedidos({ status: "aguarda" }),
-      API.pedidos({ status: "entregue" }),
-    ]);
-    const bloco = (titulo, itens) => `
-      <p class="section-title">${titulo}</p>
+      API.pedidos({ status: "aguarda" }), API.pedidos({ status: "entregue" })]);
+    const bloco = (t, itens) => `<p class="section-title">${t}</p>
       <div class="kanban" style="grid-auto-flow:row;grid-auto-columns:unset;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
-        ${itens.map(cardKanban).join("") || '<div class="empty">Nenhum pedido.</div>'}
-      </div>`;
-    $("#content").innerHTML =
-      bloco("Aguarda entrega", aguarda.itens) + bloco("Entregue", entregue.itens);
-    $$("#content .kcard").forEach((c) =>
-      c.addEventListener("click", () => abrirDetalhe(Number(c.dataset.numero))));
+        ${itens.map(cardKanban).join("") || '<div class="empty">Nenhum pedido.</div>'}</div>`;
+    $("#content").innerHTML = `<h1 class="page-title">Entregas</h1>`
+      + bloco("Aguarda entrega", aguarda.itens) + bloco("Entregue", entregue.itens);
+    $$("#content .kcard").forEach((c) => c.addEventListener("click", () => abrirDetalhe(Number(c.dataset.numero))));
   }
 
   // ------------------------------------------------------------ clientes
-  async function renderClientes() {
-    $("#toolbar").classList.add("hidden");
-    $("#view-title").textContent = "Clientes";
+  async function viewClientes() {
     const { itens } = await API.clientes();
-    $("#content").innerHTML = `<div class="client-grid">${itens.map((c) => `
-      <div class="client-card" data-codigo="${esc(c.codigo)}">
-        <div class="client-avatar">${esc(c.nome.slice(0, 2).toUpperCase())}</div>
-        <div class="cn">${esc(c.nome)}</div>
-        <div class="cc">${esc(c.codigo)}</div>
-        <div class="cp">${c.total_pedidos} pedido${c.total_pedidos === 1 ? "" : "s"}</div>
-      </div>`).join("")}</div>`;
-    $$("#content .client-card").forEach((c) =>
-      c.addEventListener("click", () => abrirCliente(c.dataset.codigo)));
+    $("#content").innerHTML = `<h1 class="page-title">Clientes</h1>
+      <div class="client-grid">${itens.map((c) => `
+        <div class="client-card" data-codigo="${esc(c.codigo)}">
+          <div class="client-avatar">${esc(c.nome.slice(0, 2).toUpperCase())}</div>
+          <div class="cn">${esc(c.nome)}</div><div class="cc">${esc(c.codigo)}</div>
+          <div class="cp">${c.total_pedidos} pedido${c.total_pedidos === 1 ? "" : "s"}</div></div>`).join("")}</div>`;
+    $$("#content .client-card").forEach((c) => c.addEventListener("click", () => abrirCliente(c.dataset.codigo)));
+  }
+  function abrirCliente(codigo) {
+    API.cliente(codigo).then((c) => {
+      let m = $("#modal-detalhe");
+      if (!m) {
+        m = document.createElement("div"); m.id = "modal-detalhe"; m.className = "modal";
+        m.innerHTML = `<div class="modal-backdrop" data-close></div><div class="modal-card detail-panel" id="modal-det-card" style="max-width:380px"></div>`;
+        document.body.appendChild(m);
+        m.querySelector("[data-close]").addEventListener("click", () => m.classList.add("hidden"));
+      }
+      const ped = c.pedidos.map((p) => `<div class="dp-row"><span class="k">#${p.numero} · ${esc(p.tipo_tela)}</span>
+        <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>`).join("") || '<div class="dp-empty">Sem pedidos.</div>';
+      $("#modal-det-card").innerHTML = `<div class="dp-head"><span class="dp-num">${esc(c.nome)}</span></div>
+        <div class="dp-row"><span class="k">Código</span><span class="v">${esc(c.codigo)}</span></div>
+        <div class="dp-row"><span class="k">Telefone</span><span class="v">${esc(c.telefone || "—")}</span></div>
+        <p class="section-title" style="color:#cdd2d0;margin-left:0">Pedidos</p>${ped}`;
+      m.classList.remove("hidden");
+    });
   }
 
-  async function abrirCliente(codigo) {
-    const c = await API.cliente(codigo);
-    const linhas = c.pedidos.map((p) => `
-      <div class="detail-row">
-        <span class="k">#${p.numero} · ${esc(p.tipo_tela)}</span>
-        <span class="v">${badge(p.status, p.status_label)}</span>
-      </div>`).join("") || '<p class="empty">Sem pedidos.</p>';
-    $("#det-titulo").textContent = c.nome;
-    $("#det-body").innerHTML = `
-      <div class="detail-head">
-        <div><div class="dn">CÓDIGO</div><div class="dnum" style="font-size:18px">${esc(c.codigo)}</div></div>
-      </div>
-      <div class="detail-list">
-        <div class="detail-row"><span class="k">Telefone</span><span class="v">${esc(c.telefone || "—")}</span></div>
-        <div class="detail-row"><span class="k">E-mail</span><span class="v">${esc(c.email || "—")}</span></div>
-      </div>
-      <p class="section-title" style="margin-left:0">Pedidos</p>
-      <div class="detail-list">${linhas}</div>`;
-    $("#det-editar").classList.add("hidden");
-    abrirModal("#modal-detalhe");
-  }
-
-  // ------------------------------------------------------------- detalhe
-  let pedidoAtual = null;
-  async function abrirDetalhe(numero) {
-    const p = await API.pedido(numero);
-    pedidoAtual = p;
-    $("#det-titulo").textContent = "Pedido";
-    $("#det-editar").classList.remove("hidden");
-    $("#det-body").innerHTML = `
-      <div class="detail-head">
-        <div><div class="dn">Nº PEDIDO</div><div class="dnum">${p.numero}</div></div>
-        ${badge(p.status, p.status_label)}
-      </div>
-      <div class="detail-list">
-        <div class="detail-row"><span class="k">Código do cliente</span><span class="v">${esc(p.codigo_cliente)}</span></div>
-        <div class="detail-row"><span class="k">Nome do cliente</span><span class="v">${esc(p.nome_cliente)}</span></div>
-        <div class="detail-row"><span class="k">Tipo de tela</span><span class="v">${esc(p.tipo_tela)}</span></div>
-        <div class="detail-row"><span class="k">Quantidade</span><span class="v">${fmtQtd(p.quantidade)}</span></div>
-        <div class="detail-row"><span class="k">Data do pedido</span><span class="v">${fmtData(p.data_pedido)}</span></div>
-        <div class="detail-row"><span class="k">Data da entrega</span><span class="v">${fmtData(p.data_entrega)}</span></div>
-        <div class="detail-row"><span class="k">Status</span><span class="v">${esc(p.status_label)}</span></div>
-        ${p.maquina ? `<div class="detail-row"><span class="k">Máquina</span><span class="v">${esc(p.maquina)}</span></div>` : ""}
+  // ------------------------------------------------------ relatórios/config
+  async function viewRelatorios() {
+    const { por_status, total } = await API.stats();
+    const { itens: maquinas } = await API.maquinas();
+    const ocup = maquinas.filter((m) => m.status === "ocupada").length;
+    $("#content").innerHTML = `<h1 class="page-title">Relatórios</h1>
+      <div class="cards-row">
+        <div class="info-card"><div class="big">${total}</div><div class="cap">Pedidos no total</div></div>
+        ${API.ordem.map((s) => `<div class="info-card"><div class="big" style="color:var(--st-${s})">${por_status[s] || 0}</div><div class="cap">${esc(CURTO[s])}</div></div>`).join("")}
+        <div class="info-card"><div class="big">${ocup}/${maquinas.length}</div><div class="cap">Máquinas ocupadas</div></div>
       </div>`;
-    abrirModal("#modal-detalhe");
+  }
+  function viewConfig() {
+    $("#content").innerHTML = `<h1 class="page-title">Configurações</h1>
+      <div class="info-card" style="max-width:460px">
+        <p class="field-label">Itens por página (Painel)</p>
+        <select class="field" id="cfg-pagesize" style="width:120px;padding:9px">
+          ${[4, 6, 8, 10].map((n) => `<option ${n === state.pageSize ? "selected" : ""}>${n}</option>`).join("")}
+        </select>
+        <p class="cap" style="color:var(--ink-soft);margin-top:14px;font-size:13px">
+          Front-end Telas Rio Branco · dados servidos pela API sobre o seed do trb-database.</p>
+      </div>`;
+    $("#cfg-pagesize").addEventListener("change", (e) => {
+      state.pageSize = Number(e.target.value); toast("Preferência salva.", "aviso");
+    });
   }
 
   // ------------------------------------------------------------- form
   async function abrirForm(pedido = null) {
-    fecharModal("#modal-detalhe");
-    const statuses = API.ordem;
-    $("#f-status").innerHTML = statuses.map((s) =>
-      `<option value="${s}">${esc(API.labels[s])}</option>`).join("");
+    $("#modal-detalhe")?.classList.add("hidden");
+    $("#f-status").innerHTML = API.ordem.map((s) => `<option value="${s}">${esc(API.labels[s])}</option>`).join("");
     const { itens: maquinas } = await API.maquinas();
     $("#f-maquina").innerHTML = '<option value="">—</option>' +
       maquinas.map((m) => `<option value="${esc(m.nome)}">${esc(m.nome)}${m.status === "ocupada" ? " (ocupada)" : ""}</option>`).join("");
     const { itens: clientes } = await API.clientes();
-    $("#clientes-list").innerHTML = clientes.map((c) =>
-      `<option value="${esc(c.codigo)}">${esc(c.nome)}</option>`).join("");
+    $("#clientes-list").innerHTML = clientes.map((c) => `<option value="${esc(c.codigo)}">${esc(c.nome)}</option>`).join("");
 
     if (pedido) {
       $("#form-titulo").textContent = "Editar pedido #" + pedido.numero;
-      $("#f-numero").value = pedido.numero;
-      $("#f-codigo").value = pedido.codigo_cliente;
-      $("#f-nome").value = pedido.nome_cliente;
-      $("#f-tipo").value = pedido.tipo_tela;
-      $("#f-qtd").value = pedido.quantidade;
-      $("#f-data-pedido").value = pedido.data_pedido || "";
-      $("#f-data-entrega").value = pedido.data_entrega || "";
-      $("#f-status").value = pedido.status;
+      $("#f-numero").value = pedido.numero; $("#f-codigo").value = pedido.codigo_cliente;
+      $("#f-nome").value = pedido.nome_cliente; $("#f-tipo").value = pedido.tipo_tela;
+      $("#f-qtd").value = pedido.quantidade; $("#f-data-pedido").value = pedido.data_pedido || "";
+      $("#f-data-entrega").value = pedido.data_entrega || ""; $("#f-status").value = pedido.status;
       $("#f-maquina").value = pedido.maquina || "";
     } else {
-      $("#form-titulo").textContent = "Novo pedido";
-      $("#pedido-form").reset();
-      $("#f-numero").value = "";
-      $("#f-qtd").value = "1";
-      $("#f-data-pedido").value = new Date().toISOString().slice(0, 10);
-      $("#f-status").value = "novo";
+      $("#form-titulo").textContent = "Novo pedido"; $("#pedido-form").reset();
+      $("#f-numero").value = ""; $("#f-qtd").value = "1";
+      $("#f-data-pedido").value = new Date().toISOString().slice(0, 10); $("#f-status").value = "novo";
     }
-    toggleMaquina();
-    abrirModal("#modal-form");
+    toggleMaquina(); abrir("#modal-form");
   }
-
-  function toggleMaquina() {
-    $("#f-maquina-wrap").style.display = $("#f-status").value === "producao" ? "" : "none";
-  }
+  const toggleMaquina = () => { $("#f-maquina-wrap").style.display = $("#f-status").value === "producao" ? "" : "none"; };
 
   async function salvarForm() {
-    const codigo = $("#f-codigo").value.trim();
-    const tipo = $("#f-tipo").value.trim();
-    const qtd = parseFloat($("#f-qtd").value);
+    const codigo = $("#f-codigo").value.trim(), tipo = $("#f-tipo").value.trim(), qtd = parseFloat($("#f-qtd").value);
     let ok = true;
-    [["#f-codigo", codigo], ["#f-tipo", tipo]].forEach(([sel, val]) => {
-      $(sel).classList.toggle("error", !val); if (!val) ok = false;
-    });
+    [["#f-codigo", codigo], ["#f-tipo", tipo]].forEach(([s, v]) => { $(s).classList.toggle("error", !v); if (!v) ok = false; });
     if (!(qtd > 0)) { $("#f-qtd").classList.add("error"); ok = false; } else $("#f-qtd").classList.remove("error");
     if (!ok) return toast("Preencha os campos obrigatórios.", "perigo");
-
     const dados = {
-      codigo_cliente: codigo,
-      nome_cliente: $("#f-nome").value.trim() || undefined,
-      tipo_tela: tipo,
-      quantidade: qtd,
-      data_pedido: $("#f-data-pedido").value || undefined,
-      data_entrega: $("#f-data-entrega").value || undefined,
-      status: $("#f-status").value,
+      codigo_cliente: codigo, nome_cliente: $("#f-nome").value.trim() || undefined, tipo_tela: tipo,
+      quantidade: qtd, data_pedido: $("#f-data-pedido").value || undefined,
+      data_entrega: $("#f-data-entrega").value || undefined, status: $("#f-status").value,
       maquina: $("#f-status").value === "producao" ? ($("#f-maquina").value || null) : null,
     };
     try {
       const numero = $("#f-numero").value;
-      if (numero) {
-        await API.editarPedido(Number(numero), dados);
-        toast("Pedido #" + numero + " atualizado!", "sucesso");
-      } else {
-        const p = await API.criarPedido(dados);
-        toast("Pedido #" + p.numero + " criado!", "sucesso");
-      }
-      fecharModal("#modal-form");
-      refresh();
-    } catch (e) {
-      toast(e.message || "Erro ao salvar.", "perigo");
-    }
+      if (numero) { await API.editarPedido(Number(numero), dados); toast("Pedido #" + numero + " atualizado!"); }
+      else { const p = await API.criarPedido(dados); toast("Pedido #" + p.numero + " criado!"); state.selecionado = p.numero; }
+      fechar("#modal-form"); render();
+    } catch (e) { toast(e.message || "Erro ao salvar.", "perigo"); }
   }
 
   // ------------------------------------------------------------- filtros
@@ -349,109 +360,70 @@
     $("#filtro-tipos").innerHTML = TIPOS.map((t) =>
       `<button type="button" class="chip ${state.filtroTipos.has(t) ? "active" : ""}" data-tipo="${esc(t)}">${esc(t)}</button>`).join("");
     $$("#filtro-tipos .chip").forEach((c) => c.addEventListener("click", () => {
-      const t = c.dataset.tipo;
-      state.filtroTipos.has(t) ? state.filtroTipos.delete(t) : state.filtroTipos.add(t);
+      const t = c.dataset.tipo; state.filtroTipos.has(t) ? state.filtroTipos.delete(t) : state.filtroTipos.add(t);
       c.classList.toggle("active");
     }));
     $("#filtro-qtd").value = state.filtros.qtd || "";
     $("#filtro-inicio").value = state.filtros.inicio || "";
     $("#filtro-entrega").value = state.filtros.entrega || "";
   }
-
   function aplicarFiltros() {
     state.filtros.tipo_tela = state.filtroTipos.size === 1 ? [...state.filtroTipos][0] : "";
     state.filtros.qtd = $("#filtro-qtd").value || null;
     state.filtros.inicio = $("#filtro-inicio").value || "";
     state.filtros.entrega = $("#filtro-entrega").value || "";
-    state.page = 1;
-    fecharModal("#modal-filtros");
-    toast("Filtros aplicados.", "aviso");
-    renderPedidos();
+    state.page = 1; fechar("#modal-filtros"); toast("Filtros aplicados.", "aviso"); render();
   }
-
   function limparFiltros() {
-    state.filtroTipos.clear();
-    state.filtros.tipo_tela = ""; state.filtros.qtd = null;
-    state.filtros.inicio = ""; state.filtros.entrega = "";
-    montarFiltros();
+    state.filtroTipos.clear(); state.filtros.tipo_tela = ""; state.filtros.qtd = null;
+    state.filtros.inicio = ""; state.filtros.entrega = ""; montarFiltros();
   }
 
   // -------------------------------------------------------------- modais
-  function abrirModal(sel) { $(sel).classList.remove("hidden"); }
-  function fecharModal(sel) { $(sel).classList.add("hidden"); }
+  const abrir = (s) => $(s).classList.remove("hidden");
+  const fechar = (s) => $(s).classList.add("hidden");
 
   // ------------------------------------------------------------- router
-  function refresh() {
-    renderStats();
-    ({ pedidos: renderPedidos, producao: renderProducao,
-       entregas: renderEntregas, clientes: renderClientes }[state.view])();
+  const VIEWS = { painel: viewPainel, pedidos: viewPedidos, producao: viewProducao,
+                  entregas: viewEntregas, clientes: viewClientes, relatorios: viewRelatorios, config: viewConfig };
+  function render() { VIEWS[state.view](); }
+  function irPara(view) {
+    state.view = view; state.page = 1;
+    $$(".nav-item[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+    fecharSidebar(); render();
   }
 
-  function irPara(view) {
-    state.view = view;
-    state.page = 1;
-    $$(".bottomnav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
-    $("#stats").style.display = view === "pedidos" ? "" : "none";
-    refresh();
-  }
+  // ----------------------------------------------------------- sidebar mobile
+  const fecharSidebar = () => { $("#sidebar").classList.remove("open"); $("#sidebar-backdrop").classList.remove("show"); };
 
   // --------------------------------------------------------------- init
   function bind() {
-    // login
     $("#login-btn").addEventListener("click", () => {
-      $("#login").classList.add("hidden");
-      $("#app").classList.remove("hidden");
-      irPara("pedidos");
+      $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); irPara("painel");
     });
     $("#logout-btn").addEventListener("click", () => {
-      $("#app").classList.add("hidden");
-      $("#login").classList.remove("hidden");
+      $("#app").classList.add("hidden"); $("#login").classList.remove("hidden");
     });
-
-    // nav
-    $$(".bottomnav button").forEach((b) =>
-      b.addEventListener("click", () => irPara(b.dataset.view)));
-
-    // toolbar
-    let tmr;
-    $("#search").addEventListener("input", (e) => {
-      clearTimeout(tmr);
-      tmr = setTimeout(() => { state.filtros.q = e.target.value.trim(); state.page = 1; renderPedidos(); }, 220);
+    $$(".nav-item[data-view]").forEach((b) => b.addEventListener("click", () => irPara(b.dataset.view)));
+    $("#hamburger").addEventListener("click", () => {
+      $("#sidebar").classList.toggle("open"); $("#sidebar-backdrop").classList.toggle("show");
     });
-    $$("#view-toggle button").forEach((b) => b.addEventListener("click", () => {
-      $$("#view-toggle button").forEach((x) => x.classList.toggle("active", x === b));
-      state.mode = b.dataset.mode; renderPedidos();
-    }));
-    $("#novo-pedido").addEventListener("click", () => abrirForm());
-    $("#open-filters").addEventListener("click", () => { montarFiltros(); abrirModal("#modal-filtros"); });
+    $("#sidebar-backdrop").addEventListener("click", fecharSidebar);
 
-    // modais — fechar
-    $$("[data-close]").forEach((el) => el.addEventListener("click", () =>
-      el.closest(".modal").classList.add("hidden")));
-
-    // detalhe / form
-    $("#det-editar").addEventListener("click", () => pedidoAtual && abrirForm(pedidoAtual));
+    $$("[data-close]").forEach((el) => el.addEventListener("click", () => el.closest(".modal").classList.add("hidden")));
     $("#form-salvar").addEventListener("click", salvarForm);
     $("#f-status").addEventListener("change", toggleMaquina);
     $("#f-codigo").addEventListener("change", async () => {
       if ($("#f-nome").value) return;
-      try {
-        const { itens } = await API.clientes();
-        const c = itens.find((x) => x.codigo === $("#f-codigo").value.trim());
-        if (c) $("#f-nome").value = c.nome;
-      } catch (_) {}
+      try { const { itens } = await API.clientes(); const c = itens.find((x) => x.codigo === $("#f-codigo").value.trim()); if (c) $("#f-nome").value = c.nome; } catch (_) {}
     });
-
-    // filtros
     $("#filtro-aplicar").addEventListener("click", aplicarFiltros);
     $("#filtro-limpar").addEventListener("click", limparFiltros);
   }
 
   async function start() {
     bind();
-    if (!(await API.isOnline()))
-      console.info("TRB: API indisponível — rodando em modo offline (seed local).");
+    if (!(await API.isOnline())) console.info("TRB: API indisponível — modo offline (seed local).");
   }
-
   document.addEventListener("DOMContentLoaded", start);
 })();
