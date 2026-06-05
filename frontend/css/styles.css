@@ -39,6 +39,7 @@ body {
 /* ----------------------------- marca ----------------------------- */
 .brand-logo { display: flex; align-items: center; gap: 7px; color: #fff; }
 .brand-spark { color: #8fd07f; font-size: 18px; }
+.brand-leaf { width: 20px; height: 20px; fill: #8fd07f; flex: none; }
 .brand-trb { font-weight: 800; font-size: 26px; letter-spacing: .5px; font-style: italic; }
 .brand-sub { font-size: 10px; line-height: 1.05; font-weight: 600; opacity: .95; }
 .brand-logo--dark { color: var(--green); justify-content: center; margin-bottom: 8px; }
@@ -104,6 +105,11 @@ body {
   border: 1px solid var(--line); border-radius: 22px; padding: 0 16px; color: var(--ink-soft); }
 .search input { flex: 1; border: 0; outline: 0; background: transparent; padding: 11px 0;
   font-size: 14px; color: var(--ink); }
+.search input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.search-clear { border: 0; background: transparent; cursor: pointer; color: var(--ink-soft); padding: 0;
+  font-size: 18px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; flex: none; }
+.search-clear:hover { background: var(--surface-2); color: var(--ink); }
+.search input:placeholder-shown ~ .search-clear { display: none; }
 .view-toggle { display: flex; background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius-sm); overflow: hidden; }
 .view-toggle button { border: 0; background: transparent; padding: 9px 16px; font-size: 13px;
@@ -188,7 +194,7 @@ tbody tr:hover { background: var(--surface-2); }
 .kcard[data-status="entregue"] .flag { background: var(--st-entregue); }
 .kcard .kp { font-weight: 700; font-size: 14px; }
 .kcard .kc { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
-.kcard .kn { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 1px; }
+.kcard .kn { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 1px; color: var(--green); }
 .kstatus { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .3px; color: #fff; background: var(--panel-head); padding: 3px 9px;
   border-radius: 5px; margin-bottom: 9px; }

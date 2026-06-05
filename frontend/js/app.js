@@ -76,6 +76,7 @@
       <div class="search">
         <svg class="ico" viewBox="0 0 24 24"><path d="M21 21l-4.3-4.3M11 19a8 8 0 110-16 8 8 0 010 16z"/></svg>
         <input id="search" type="search" placeholder="Buscar pedido..." value="${esc(state.filtros.q)}">
+        <button class="search-clear" id="search-clear" type="button" aria-label="Limpar busca">&times;</button>
       </div>
       <button class="btn btn--green" id="novo-pedido">+ Novo pedido</button>
       <button class="btn btn--outline" id="open-filters">
@@ -88,6 +89,7 @@
       clearTimeout(tmr);
       tmr = setTimeout(() => { state.filtros.q = e.target.value.trim(); state.page = 1; render(); }, 220);
     });
+    $("#search-clear")?.addEventListener("click", () => { state.filtros.q = ""; state.page = 1; render(); });
     $("#novo-pedido")?.addEventListener("click", () => abrirForm());
     $("#open-filters")?.addEventListener("click", () => { montarFiltros(); abrir("#modal-filtros"); });
   }
