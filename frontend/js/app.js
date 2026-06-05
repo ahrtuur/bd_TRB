@@ -4,6 +4,7 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
   const TIPOS = ["Tela 3x2", "Tela 4x2", "Tela 4x3", "Tela 5x3", "Tela 6x3", "Tela 6x4", "Tela 8x5"];
+  const AVATAR_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.7-9 6v2h18v-2c0-3.3-4-6-9-6z"/></svg>`;
 
   // rótulos curtos dos contadores (como no protótipo)
   const CURTO = { atrasado: "Atrasado", novo: "Novo", producao: "Em produção",
@@ -27,9 +28,15 @@
 
   function toast(msg, tipo = "sucesso") {
     const t = document.createElement("div");
-    t.className = "toast " + tipo; t.textContent = msg;
+    t.className = "toast " + tipo;
+    const span = document.createElement("span"); span.textContent = msg;
+    const x = document.createElement("button");
+    x.className = "toast-close"; x.innerHTML = "&times;"; x.setAttribute("aria-label", "Fechar");
+    const close = () => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); };
+    x.addEventListener("click", close);
+    t.append(span, x);
     $("#toasts").appendChild(t);
-    setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 2600);
+    setTimeout(close, 2600);
   }
 
   function aplicaFiltrosLocais(itens) {
@@ -132,10 +139,12 @@
   // ------------------------------------------------------- PEDIDOS (kanban)
   const cardKanban = (p) => `
     <div class="kcard ${state.selecionado === p.numero ? "sel" : ""}" data-status="${p.status}" data-numero="${p.numero}">
+      <span class="kstatus">${esc(API.labels[p.status])}</span>
       <span class="flag"></span>
       <div class="kp">PEDIDO ${p.numero}</div>
       <div class="kc">Nome do Cliente</div>
       <div class="kn">${esc(p.nome_cliente)}</div>
+      <span class="kplay"></span>
     </div>`;
 
   async function viewPedidos() {
@@ -171,16 +180,18 @@
     return `
       <div class="dp-head"><span class="dp-num">Nº PEDIDO ${p.numero}</span>
         <span class="dp-flag" style="background:var(--st-${p.status})"></span></div>
-      <div class="dp-row"><span class="k">Código do cliente</span><span class="v">${esc(p.codigo_cliente)}</span></div>
-      <div class="dp-row"><span class="k">Nome do cliente</span><span class="v">${esc(p.nome_cliente)}</span></div>
-      <div class="dp-row"><span class="k">Tipo de tela</span><span class="v">${esc(p.tipo_tela)}</span></div>
-      <div class="dp-row"><span class="k">Quantidade</span><span class="v">${fmtQtd(p.quantidade)}</span></div>
-      <div class="dp-row"><span class="k">Data do pedido</span><span class="v">${fmtData(p.data_pedido)}</span></div>
-      <div class="dp-row"><span class="k">Data da entrega</span><span class="v">${fmtData(p.data_entrega)}</span></div>
-      <div class="dp-row"><span class="k">Status</span>
-        <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>
-      ${p.maquina ? `<div class="dp-row"><span class="k">Máquina</span><span class="v">${esc(p.maquina)}</span></div>` : ""}
-      <div class="dp-actions"><button class="btn btn--green" data-editar="${p.numero}">Editar pedido</button></div>`;
+      <div class="dp-body">
+        <div class="dp-row"><span class="k">Código do cliente</span><span class="v">${esc(p.codigo_cliente)}</span></div>
+        <div class="dp-row"><span class="k">Nome do cliente</span><span class="v">${esc(p.nome_cliente)}</span></div>
+        <div class="dp-row"><span class="k">Tipo de tela</span><span class="v">${esc(p.tipo_tela)}</span></div>
+        <div class="dp-row"><span class="k">Quantidade</span><span class="v">${fmtQtd(p.quantidade)}</span></div>
+        <div class="dp-row"><span class="k">Data do pedido</span><span class="v">${fmtData(p.data_pedido)}</span></div>
+        <div class="dp-row"><span class="k">Data da entrega</span><span class="v">${fmtData(p.data_entrega)}</span></div>
+        <div class="dp-row"><span class="k">Status</span>
+          <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>
+        ${p.maquina ? `<div class="dp-row"><span class="k">Máquina</span><span class="v">${esc(p.maquina)}</span></div>` : ""}
+        <div class="dp-actions"><button class="btn btn--green" data-editar="${p.numero}">Editar pedido</button></div>
+      </div>`;
   }
   function bindDark(p) {
     $(`[data-editar="${p.numero}"]`)?.addEventListener("click", () => abrirForm(p));
@@ -258,9 +269,9 @@
     $("#content").innerHTML = `<h1 class="page-title">Clientes</h1>
       <div class="client-grid">${itens.map((c) => `
         <div class="client-card" data-codigo="${esc(c.codigo)}">
-          <div class="client-avatar">${esc(c.nome.slice(0, 2).toUpperCase())}</div>
-          <div class="cn">${esc(c.nome)}</div><div class="cc">${esc(c.codigo)}</div>
-          <div class="cp">${c.total_pedidos} pedido${c.total_pedidos === 1 ? "" : "s"}</div></div>`).join("")}</div>`;
+          <div class="client-avatar">${AVATAR_SVG}</div>
+          <div class="cc">${esc(c.codigo)}</div>
+          <div class="cn">${esc(c.nome)}</div></div>`).join("")}</div>`;
     $$("#content .client-card").forEach((c) => c.addEventListener("click", () => abrirCliente(c.dataset.codigo)));
   }
   function abrirCliente(codigo) {
@@ -274,10 +285,15 @@
       }
       const ped = c.pedidos.map((p) => `<div class="dp-row"><span class="k">#${p.numero} · ${esc(p.tipo_tela)}</span>
         <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>`).join("") || '<div class="dp-empty">Sem pedidos.</div>';
-      $("#modal-det-card").innerHTML = `<div class="dp-head"><span class="dp-num">${esc(c.nome)}</span></div>
-        <div class="dp-row"><span class="k">Código</span><span class="v">${esc(c.codigo)}</span></div>
-        <div class="dp-row"><span class="k">Telefone</span><span class="v">${esc(c.telefone || "—")}</span></div>
-        <p class="section-title" style="color:#cdd2d0;margin-left:0">Pedidos</p>${ped}`;
+      $("#modal-det-card").innerHTML = `
+        <div class="dp-head dp-head--client">
+          <span class="client-avatar client-avatar--sm">${AVATAR_SVG}</span>
+          <span class="dp-client-id"><span class="dp-num">${esc(c.codigo)}</span><span class="dp-client-name">${esc(c.nome)}</span></span>
+        </div>
+        <div class="dp-body">
+          <div class="dp-row"><span class="k">Telefone</span><span class="v">${esc(c.telefone || "—")}</span></div>
+          <p class="section-title" style="margin:14px 0 8px">Pedidos</p>${ped}
+        </div>`;
       m.classList.remove("hidden");
     });
   }
