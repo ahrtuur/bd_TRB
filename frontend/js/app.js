@@ -42,6 +42,7 @@
   function aplicaFiltrosLocais(itens) {
     const f = state.filtros;
     return itens.filter((p) => {
+      if (state.filtroTipos.size && !state.filtroTipos.has(p.tipo_tela)) return false;
       if (f.qtd != null && f.qtd !== "" && Number(p.quantidade) < Number(f.qtd)) return false;
       if (f.inicio && p.data_pedido && p.data_pedido < f.inicio) return false;
       if (f.entrega && p.data_entrega && p.data_entrega > f.entrega) return false;
@@ -216,39 +217,47 @@
 
   // ------------------------------------------------------------ produção
   async function viewProducao() {
-    const [{ itens: maquinas }, prod, novos] = await Promise.all([
-      API.maquinas(), API.pedidos({ status: "producao" }), API.pedidos({ status: "novo" }),
+    const [prod, novos] = await Promise.all([
+      API.pedidos({ status: "producao" }), API.pedidos({ status: "novo" }),
     ]);
-    const fila = [...novos.itens, ...prod.itens.filter((p) => !p.maquina)];
+    const fila = [...prod.itens, ...novos.itens].sort((a, b) => a.numero - b.numero);
+    let sel = fila.find((p) => p.numero === state.selecionado);
+    if (!sel && prod.itens.length) { state.selecionado = prod.itens[0].numero; sel = prod.itens[0]; }
+
     $("#content").innerHTML = `
       <h1 class="page-title">Produção</h1>
       <div class="prod-grid">
         <div>
           <p class="section-title" style="margin-top:0">Em produção</p>
-          <div class="kanban" style="grid-auto-columns:minmax(190px,1fr)">
-            <div class="kcol" data-status="producao">
-              <div class="kcol-head"><span>Em produção</span><span class="count">${prod.itens.length}</span></div>
-              ${prod.itens.map(cardKanban).join("") || '<div class="empty">—</div>'}
-            </div>
-          </div>
-        </div>
-        <div>
-          <p class="section-title" style="margin-top:0">Máquinas</p>
-          <div class="maquinas">${maquinas.map((m) => `
-            <div class="maquina ${m.status}"><h4>${esc(m.nome)}</h4>
-              <div class="mst">${m.status === "ocupada" ? "Ocupada" : "Livre"}</div>
-              <div class="mp">${m.pedido_atual ? "Pedido #" + m.pedido_atual : "Sem pedido"}</div></div>`).join("")}
+          <div class="prod-cards">
+            ${prod.itens.map(cardKanban).join("") || '<div class="empty">Nenhum pedido em produção.</div>'}
           </div>
           <p class="section-title">Fila</p>
-          <div class="fila"><div class="fila-head">Aguardando produção</div>
-            ${fila.map((p) => `<div class="fila-item" data-numero="${p.numero}">
-              <span><strong>${p.numero}</strong> · ${esc(p.codigo_cliente)}</span><span>${esc(p.tipo_tela)}</span></div>`).join("")
-              || '<div class="fila-item">Fila vazia</div>'}
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nº</th><th>Código</th><th>Tipo de tela</th><th>Máquina</th></tr></thead>
+              <tbody>${fila.map((p) => `
+                <tr data-numero="${p.numero}">
+                  <td class="num-cell">${p.numero}</td>
+                  <td>${esc(p.codigo_cliente)}</td>
+                  <td>${esc(p.tipo_tela)}</td>
+                  <td>${esc(p.maquina || "—")}</td>
+                </tr>`).join("") || '<tr><td colspan="4" class="empty">Fila vazia.</td></tr>'}
+              </tbody>
+            </table>
           </div>
         </div>
+        <aside class="detail-panel" id="painel-detalhe">${sel ? detalheDark(sel) : '<div class="dp-empty">Selecione um pedido</div>'}</aside>
       </div>`;
-    $$("#content [data-numero]").forEach((el) =>
-      el.addEventListener("click", () => abrirDetalhe(Number(el.dataset.numero))));
+
+    const selecionar = (numero) => {
+      state.selecionado = numero;
+      $$("#content .kcard").forEach((x) => x.classList.toggle("sel", Number(x.dataset.numero) === numero));
+      API.pedido(numero).then((p) => { $("#painel-detalhe").innerHTML = detalheDark(p); bindDark(p); });
+    };
+    $$("#content .kcard").forEach((c) => c.addEventListener("click", () => selecionar(Number(c.dataset.numero))));
+    $$("#content tbody tr[data-numero]").forEach((tr) => tr.addEventListener("click", () => selecionar(Number(tr.dataset.numero))));
+    if (sel) bindDark(sel);
   }
 
   // ------------------------------------------------------------ entregas
@@ -374,17 +383,16 @@
   // ------------------------------------------------------------- filtros
   function montarFiltros() {
     $("#filtro-tipos").innerHTML = TIPOS.map((t) =>
-      `<button type="button" class="chip ${state.filtroTipos.has(t) ? "active" : ""}" data-tipo="${esc(t)}">${esc(t)}</button>`).join("");
-    $$("#filtro-tipos .chip").forEach((c) => c.addEventListener("click", () => {
-      const t = c.dataset.tipo; state.filtroTipos.has(t) ? state.filtroTipos.delete(t) : state.filtroTipos.add(t);
-      c.classList.toggle("active");
+      `<label class="check"><input type="checkbox" value="${esc(t)}" ${state.filtroTipos.has(t) ? "checked" : ""}><span>${esc(t)}</span></label>`).join("");
+    $$("#filtro-tipos input").forEach((c) => c.addEventListener("change", () => {
+      c.checked ? state.filtroTipos.add(c.value) : state.filtroTipos.delete(c.value);
     }));
     $("#filtro-qtd").value = state.filtros.qtd || "";
     $("#filtro-inicio").value = state.filtros.inicio || "";
     $("#filtro-entrega").value = state.filtros.entrega || "";
   }
   function aplicarFiltros() {
-    state.filtros.tipo_tela = state.filtroTipos.size === 1 ? [...state.filtroTipos][0] : "";
+    state.filtros.tipo_tela = "";
     state.filtros.qtd = $("#filtro-qtd").value || null;
     state.filtros.inicio = $("#filtro-inicio").value || "";
     state.filtros.entrega = $("#filtro-entrega").value || "";

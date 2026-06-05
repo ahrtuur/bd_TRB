@@ -209,7 +209,7 @@ tbody tr:hover { background: var(--surface-2); }
   font-size: 14px; border-bottom: 1px solid var(--line); }
 .detail-panel .dp-row:last-of-type { border-bottom: 0; }
 .detail-panel .dp-row .k { color: var(--ink-soft); }
-.detail-panel .dp-row .v { font-weight: 600; text-align: right; }
+.detail-panel .dp-row .v { font-weight: 600; text-align: right; color: #8a6a3c; }
 .detail-panel .dp-status { font-weight: 600; }
 .detail-panel .dp-actions { display: flex; gap: 10px; margin-top: 16px; }
 .detail-panel .dp-actions .btn { flex: 1; justify-content: center; }
@@ -218,6 +218,8 @@ tbody tr:hover { background: var(--surface-2); }
 /* ----------------------------- produção -------------------------- */
 .prod-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 820px) { .prod-grid { grid-template-columns: 1.2fr .8fr; } }
+.prod-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.prod-cards .kcard { margin-bottom: 0; }
 .maquinas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .maquina { background: var(--surface); border-radius: var(--radius); padding: 14px;
   box-shadow: var(--shadow-sm); border-top: 4px solid var(--st-aguarda); }
@@ -289,6 +291,10 @@ tbody tr:hover { background: var(--surface-2); }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px;
   font-size: 13px; cursor: pointer; font-weight: 600; color: var(--ink-soft); }
 .chip.active { background: var(--green); border-color: var(--green); color: #fff; }
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 16px; margin-bottom: 16px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  color: var(--ink); cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
 
 /* toasts / alertas — banners sólidos com fechar (conforme guia de estilo) */
 .toast-wrap { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column;
