@@ -256,7 +256,7 @@ tbody tr:hover { background: var(--surface-2); }
 .client-card .cc { font-weight: 700; font-size: 15px; color: var(--ink); }
 .client-card .cn { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
 /* cabeçalho do detalhe de cliente */
-.dp-head--client { align-items: center; gap: 14px; justify-content: flex-start; }
+.detail-panel .dp-head--client { gap: 14px; justify-content: flex-start; padding-right: 44px; }
 .client-avatar--sm { width: 52px; height: 52px; margin: 0; border-radius: 10px;
   background: rgba(255,255,255,.18); color: #fff; }
 .client-avatar--sm svg { width: 32px; height: 32px; }
@@ -282,6 +282,11 @@ tbody tr:hover { background: var(--surface-2); }
 .modal-head h3 { font-size: 17px; }
 .modal-body { padding: 18px; overflow-y: auto; }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid var(--line); }
+.modal-x { position: absolute; top: 11px; right: 13px; z-index: 2; width: 26px; height: 26px;
+  border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
+  font-size: 19px; line-height: 1; color: #fff; background: rgba(255,255,255,.20); }
+.modal-x:hover { background: rgba(255,255,255,.34); }
+.modal-card.has-close .dp-flag { display: none; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span { font-size: 12px; font-weight: 600; color: var(--ink-soft); }

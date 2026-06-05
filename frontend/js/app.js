@@ -200,21 +200,23 @@
     $(`[data-editar="${p.numero}"]`)?.addEventListener("click", () => abrirForm(p));
   }
 
-  // detalhe em modal (vindo da tabela)
+  // modal de detalhe (vindo da tabela / clientes) — com botão de fechar (×)
+  function montarModalDetalhe(html) {
+    let m = $("#modal-detalhe");
+    if (!m) {
+      m = document.createElement("div"); m.id = "modal-detalhe"; m.className = "modal";
+      m.innerHTML = `<div class="modal-backdrop" data-close></div>
+        <div class="modal-card detail-panel has-close" id="modal-det-card" style="max-width:380px"></div>`;
+      document.body.appendChild(m);
+      m.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) m.classList.add("hidden"); });
+    }
+    $("#modal-det-card").innerHTML = html +
+      '<button class="modal-x" type="button" data-close aria-label="Fechar">&times;</button>';
+    m.classList.remove("hidden");
+  }
+
   function abrirDetalhe(numero) {
-    API.pedido(numero).then((p) => {
-      let m = $("#modal-detalhe");
-      if (!m) {
-        m = document.createElement("div"); m.id = "modal-detalhe"; m.className = "modal";
-        m.innerHTML = `<div class="modal-backdrop" data-close></div>
-          <div class="modal-card detail-panel" id="modal-det-card" style="max-width:380px"></div>`;
-        document.body.appendChild(m);
-        m.querySelector("[data-close]").addEventListener("click", () => m.classList.add("hidden"));
-      }
-      $("#modal-det-card").innerHTML = detalheDark(p);
-      bindDark(p);
-      m.classList.remove("hidden");
-    });
+    API.pedido(numero).then((p) => { montarModalDetalhe(detalheDark(p)); bindDark(p); });
   }
 
   // ------------------------------------------------------------ produção
@@ -287,16 +289,9 @@
   }
   function abrirCliente(codigo) {
     API.cliente(codigo).then((c) => {
-      let m = $("#modal-detalhe");
-      if (!m) {
-        m = document.createElement("div"); m.id = "modal-detalhe"; m.className = "modal";
-        m.innerHTML = `<div class="modal-backdrop" data-close></div><div class="modal-card detail-panel" id="modal-det-card" style="max-width:380px"></div>`;
-        document.body.appendChild(m);
-        m.querySelector("[data-close]").addEventListener("click", () => m.classList.add("hidden"));
-      }
       const ped = c.pedidos.map((p) => `<div class="dp-row"><span class="k">#${p.numero} · ${esc(p.tipo_tela)}</span>
         <span class="dp-status badge-${p.status}">${esc(p.status_label)}</span></div>`).join("") || '<div class="dp-empty">Sem pedidos.</div>';
-      $("#modal-det-card").innerHTML = `
+      montarModalDetalhe(`
         <div class="dp-head dp-head--client">
           <span class="client-avatar client-avatar--sm">${AVATAR_SVG}</span>
           <span class="dp-client-id"><span class="dp-num">${esc(c.codigo)}</span><span class="dp-client-name">${esc(c.nome)}</span></span>
@@ -304,8 +299,7 @@
         <div class="dp-body">
           <div class="dp-row"><span class="k">Telefone</span><span class="v">${esc(c.telefone || "—")}</span></div>
           <p class="section-title" style="margin:14px 0 8px">Pedidos</p>${ped}
-        </div>`;
-      m.classList.remove("hidden");
+        </div>`);
     });
   }
 
